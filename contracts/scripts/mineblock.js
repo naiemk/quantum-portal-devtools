@@ -8,9 +8,7 @@
 const { mine } = require("@nomicfoundation/hardhat-network-helpers");
 
 async function main() {
-  console.log('Mining block to allow the network fork understand its hard-fork')
   await mine();
-  console.log('Mined block to allow the network fork understand its hard-fork')
 }
 
 // We recommend this pattern to be able to use async/await everywhere
