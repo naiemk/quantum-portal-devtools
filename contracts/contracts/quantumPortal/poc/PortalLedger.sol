@@ -17,7 +17,7 @@ abstract contract PortalLedger is WithAdmin {
     address public mgr;
     QuantumPortalState public state;
     QuantumPortalLib.Context public context;
-    uint256 internal immutable CHAIN_ID; // To support override
+    uint256 public immutable CHAIN_ID; // To support override
 
     event RemoteTransfer(
         uint256 chainId,

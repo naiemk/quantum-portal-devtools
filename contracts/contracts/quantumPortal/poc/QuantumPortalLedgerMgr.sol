@@ -36,7 +36,7 @@ contract QuantumPortalLedgerMgr is
     uint256 constant MAX_BLOCK_SIZE = 30_000_000 / 100; // Arbitrary number for max block size
     uint256 constant MAX_BLOCK_FOR_FINALIZATION = 10; // Maximum number of blocks for fin
     string public constant override VERSION = "000.001";
-    uint256 immutable CHAIN_ID;
+    uint256 immutable public CHAIN_ID;
     uint256 public minerMinimumStake = 1_000_000 ether; // Minimum 1M tokens to become miner
     QuantumPortalState public override state;
     address public ledger;
