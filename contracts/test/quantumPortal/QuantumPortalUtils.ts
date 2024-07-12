@@ -3,12 +3,12 @@ import { advanceTimeAndBlock } from "foundry-contracts/dist/test/common/TimeTrav
 import { randomSalt } from "foundry-contracts/dist/test/common/Eip712Utils";
 import { abi, expiryInFuture, getCtx, isAllZero, TestContext} from 
     'foundry-contracts/dist/test/common/Utils';
-import { QuantumPortalLedgerMgrTest } from "../../../typechain-types/QuantumPortalLedgerMgrTest";
-import { QuantumPortalPocTest } from "../../../typechain-types/QuantumPortalPocTest";
-import { QuantumPortalState } from '../../../typechain-types/QuantumPortalState';
-import { DeployQp } from '../../../typechain-types/DeployQp';
-import { QuantumPortalGatewayDEV } from "../../../typechain-types/QuantumPortalGatewayDEV";
-import { QpFeeToken } from '../../../typechain-types/QpFeeToken';
+import { QuantumPortalLedgerMgrTest } from "../../typechain-types/QuantumPortalLedgerMgrTest";
+import { QuantumPortalPocTest } from "../../typechain-types/QuantumPortalPocTest";
+import { QuantumPortalState } from '../../typechain-types/QuantumPortalState';
+import { DeployQp } from '../../typechain-types/DeployQp';
+import { QuantumPortalGatewayDEV } from "../../typechain-types/QuantumPortalGatewayDEV";
+import { QpFeeToken } from '../../typechain-types/QpFeeToken';
 
 async function state(mgr: QuantumPortalLedgerMgrTest) {
     const stateF = await ethers.getContractFactory('QuantumPortalState');

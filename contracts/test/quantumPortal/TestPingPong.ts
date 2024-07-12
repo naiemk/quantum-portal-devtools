@@ -1,6 +1,6 @@
 import { ethers } from "hardhat";
 import { QuantumPortalUtils, deployAll } from "./QuantumPortalUtils";
-import { PingPong } from '../../../typechain-types/PingPong';
+import { PingPong } from '../../typechain-types/PingPong';
 import { Wei } from "foundry-contracts/dist/test/common/Utils";
 
 function prettyLog(msg: string) {

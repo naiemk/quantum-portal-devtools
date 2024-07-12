@@ -5,10 +5,15 @@
     "esModuleInterop": true,
     "outDir": "dist",
     "resolveJsonModule": true,
+    "skipLibCheck": true
   },
   "include": [
     "./scripts",
-    "./test"
+    "./test",
+    "./typechain-types"
   ],
+ "exclude": [
+   "node_modules"
+ ],
   "files": ["./hardhat.config.ts"]
 }

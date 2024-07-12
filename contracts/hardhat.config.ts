@@ -5,8 +5,8 @@ import { ethers } from "ethers";
 import { accounts } from './config/account.js'
 import { CHAIN_CONFIG } from './config/chain.js';
 
-if (accounts.mnemonic) {
-    let mnemonicWallet = ethers.Wallet.fromMnemonic(accounts.mnemonic);
+if ((accounts as any).mnemonic) {
+    let mnemonicWallet = ethers.Wallet.fromMnemonic((accounts as any).mnemonic);
     console.log('Test account used from MNEMONIC', mnemonicWallet.privateKey, mnemonicWallet.address);
 } else {
     let wallet = new ethers.Wallet(accounts[0]);
@@ -40,7 +40,7 @@ module.exports = {
         },
       },
     ],
-  },
+  } as any,
   networks: {
     hardhat: {
       accounts,
@@ -50,5 +50,5 @@ module.exports = {
       accounts,
     },
     ...networks,
-  },
+  } as any,
 };
