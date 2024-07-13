@@ -12,11 +12,11 @@ In general, to test a QP application you need to follow these steps:
 $ export QP_HOME=`pwd`
 ```
 
-1- Run forked networks
-2- Run deploy QP contract
-3- Deploy and configure your QP dApp contracts
-4- Call your dApp that triggers a multi-chain transaction
-5- Mine QP and inspect results
+1. Run forked networks
+2. Run deploy QP contract
+3. Deploy and configure your QP dApp contracts
+4. Call your dApp that triggers a multi-chain transaction
+5. Mine QP and inspect results
 
 ### 1- Run foked networks
 
