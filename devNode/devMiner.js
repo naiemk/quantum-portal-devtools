@@ -1,7 +1,7 @@
 const { ethers } = require('ethers');
 const { CHAIN_CONFIG } = require('../contracts/config/chain.js');
 const { accounts } = require('../contracts/config/account.js');
-const { deploy, connect, connectGateway, mine } = require('./utils.js');
+const { deploy, connect, connectGateway, mine, mineEthBlock } = require('./utils.js');
 const BASE = 'http://127.0.0.1:';
 
 async function getWallet()  {
@@ -21,12 +21,13 @@ async function getProvider(network) {
   if (!chain) {
     throw new Error(`Invalid network ${network}. Not found in configs.`);
   }
-  const provider = new ethers.providers.JsonRpcProvider(BASE + chain.forkPort);
-  const chainId = chain.forkChainId; //await provider.getNetwork().then(network => network.chainId);
+  const uri = BASE + chain.forkPort;
+  const provider = new ethers.providers.JsonRpcProvider(uri);
+  const chainId = chain.forkChainId;
   if (!chainId) {
     throw new Error(`No chainID configured for ${network}`);
   }
-  console.log(`Connected to ${network} with chainId ${chainId}`);
+  console.log(`Connected to ${network} with chainId ${chainId} (${uri})`);
   return {provider, chainId};
 }
 
@@ -39,6 +40,7 @@ async function deployContracts(network) {
   const deped = await deploy(wallet, p.chainId);
   const connected = await connect(wallet, deped.mgr, deped.portal, deped.token, deped.gateway);
   console.log('Contracts deployed', {...deped, network, chainId: connected.chainId});
+  return connected;
 }
 
 async function mineQp(ngate1, ngate2) {
@@ -47,20 +49,23 @@ async function mineQp(ngate1, ngate2) {
   }
   const [network1, gateway1] = ngate1.split(':');
   const [network2, gateway2] = ngate2.split(':');
-  const p1 = getProvider(network1);
-  const p2 = getProvider(network2);
-
+  const p1 = await getProvider(network1);
+  const p2 = await getProvider(network2);
   const blockNumber1 = await p1.provider.getBlockNumber();
   const blockNumber2 = await p2.provider.getBlockNumber();
   console.log(`PROVIDERS: ${blockNumber1} and ${blockNumber2}`);
   console.log(`Connecting to ${gateway1} on ${network1}`);
-  const chain1 = await connectGateway(await getWallet(network1), gateway1);
+  const w1 = (await getWallet(network1)).connect(p1.provider);
+  const chain1 = await connectGateway(w1, gateway1);
   console.log(`Connecting to ${gateway2} on ${network2}`);
-  const chain2 = await connectGateway(await getWallet(network2), gateway2);
+  const w2 = (await getWallet(network2)).connect(p2.provider);
+  const chain2 = await connectGateway(w2, gateway2);
   console.log(`Mining from chain ${network1}:${gateway1} to ${network2}:${gateway2}`);
+  await mineEthBlock(w1.provider); // To push the time forward
+  await mineEthBlock(w2.provider);
   await mine(chain1, chain2);
 }
 
 module.exports = {
-  mineQp, deployContracts
+  mineQp, deployContracts, getWallet, getProvider,
 }

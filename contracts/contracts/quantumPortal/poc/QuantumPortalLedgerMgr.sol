@@ -31,7 +31,7 @@ contract QuantumPortalLedgerMgr is
 {
     uint256 constant FIX_TX_SIZE = 9 * 32;
     uint256 constant FIXED_REJECT_SIZE = 9 * 32;
-    uint256 constant BLOCK_PERIOD = 2 minutes; // One block per two minutes?
+    uint256 constant BLOCK_PERIOD = 10 seconds; // One block per two minutes? 10 seconds for DEV contract
     uint256 constant MAX_TXS_PER_BLOCK = 100; // Arbitraty number to prevent reaching the block gas limit 
     uint256 constant MAX_BLOCK_SIZE = 30_000_000 / 100; // Arbitrary number for max block size
     uint256 constant MAX_BLOCK_FOR_FINALIZATION = 10; // Maximum number of blocks for fin
@@ -313,6 +313,10 @@ contract QuantumPortalLedgerMgr is
      @param chainId The chain ID.
      */
     function isLocalBlockReady(uint64 chainId) external view returns (bool) {
+        QuantumPortalLib.Block memory rv = state.getLastLocalBlock(chainId);
+        console.log("RV", rv.chainId, rv.nonce);
+        console.log("RVV", rv.timestamp, block.timestamp);
+        console.log("RVV", block.timestamp - rv.timestamp);
         return _isLocalBlockReady(state.getLastLocalBlock(chainId));
     }
 
@@ -668,6 +672,8 @@ contract QuantumPortalLedgerMgr is
             );
             emit LocalBlockCreated(b.chainId, b.nonce, b.timestamp);
             console.log("NEW BLOCK NONCE", b.nonce);
+            console.log("NEW BLOCK NONCE", b.timestamp);
+            console.log("NEW BLOCK NONCE", b.chainId);
         }
         uint256 varFee = IQuantumPortalWorkPoolServer(minerMgr).collectFee(
             remoteChainId,

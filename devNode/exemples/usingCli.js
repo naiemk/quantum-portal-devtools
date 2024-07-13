@@ -1,5 +1,6 @@
-const { printCounters } = require("./UsingSdk");
-
+const { printCounters, PINGPONG_CONFIG } = require("./pingPongConf.js");
+const { getWallet, getProvider } = require('../devMiner.js');
+const { PingPong__factory } = require('../../contracts/dist/typechain-types/factories/PingPong__factory.js');
 
 /**
  * Make sure the chain is configured and contracts are deployed.
@@ -14,11 +15,11 @@ const { printCounters } = require("./UsingSdk");
 async function main() {
   const {ethereum: pingEth, polygon: pingPol} = PINGPONG_CONFIG;
 
-  const ethWallet = await getWallet().connect(await getProvider('ethereum'));
-  const polWallet = await getWallet().connect(await getProvider('polygon'));
+  const ethWallet = (await getWallet()).connect((await getProvider('ethereum')).provider);
+  const polWallet = (await getWallet()).connect((await getProvider('polygon')).provider);
 
-  const ppEth = PingPong__factory(pingEth, ethWallet);
-  const ppPol = new PingPong__factory(pingPol, polWallet);
+  const ppEth = PingPong__factory.connect(pingEth, ethWallet);
+  const ppPol = PingPong__factory.connect(pingPol, polWallet);
 
   await printCounters(ppEth, ppPol);
   if (process.argv.indexOf('--cick-off-ping') > 0) {

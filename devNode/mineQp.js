@@ -1,8 +1,9 @@
+#!node
 const { mineQp, deployContracts, } = require('./devMiner.js');
 
 async function main() {
   const argv = process.argv.slice(2);
-  const command = argv[0];
+  const command = argv[0] || '';
   if (command === 'mine') {
     const argv = process.argv.slice(3);
     const ngate1 = argv[0];

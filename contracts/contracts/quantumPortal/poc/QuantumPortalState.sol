@@ -175,7 +175,7 @@ contract QuantumPortalState is WithAdmin {
      */
     function getLastLocalBlock(
         uint256 key
-    ) external view returns (QuantumPortalLib.Block memory) {
+    ) external view returns (QuantumPortalLib.Block memory rv) {
         return lastLocalBlock[key];
     }
 

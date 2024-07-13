@@ -15,8 +15,43 @@ class NotDeployedError extends Error {
   }
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function isContract(provider, value) {
+    const result = await provider.getCode(value)
+    if (result === "0x") {
+        return false;
+    }
+    return true;
+}
+
+async function mineEthBlock(provider) {
+  await provider.send("evm_increaseTime", [300]);
+  await provider.send("evm_mine");
+}
+
+
+async function connect(signer, mgr, portal, token, gateway) {
+  const mgrC = QuantumPortalLedgerMgrTest__factory.connect(mgr, signer);
+  const chainId = (await mgrC.CHAIN_ID()).toNumber();
+  return {
+    chainId,
+    mgr: mgrC,
+    portal: QuantumPortalPocTest__factory.connect(portal, signer),
+    token:  QpFeeToken__factory.connect(token, signer),
+    gateway: QuantumPortalGatewayDEV__factory.connect(gateway, signer),
+    state: QuantumPortalState__factory.connect(await mgrC.state(), signer),
+  };
+}
+
 module.exports = {
+  isContract,
   NotDeployedError,
+  connect,
+  sleep,
+  mineEthBlock,
   deploy: async (signer, chainId) => {
     const depF = new DeployQp__factory(signer);
     const dep = await depF.deploy();
@@ -48,26 +83,14 @@ module.exports = {
     if (!gateway) {
       throw new Error('No gateway provided');
     }
-    const gate = QuantumPortalGatewayDEV__factory.connect(gateway, signer);
-    if (!await gate.deployed()) {
-      throw new NotDeployedError(gate);
+    if (!await isContract(signer.provider, gateway)) {
+      throw new NotDeployedError(gateway);
     }
+    const gate = QuantumPortalGatewayDEV__factory.connect(gateway, signer);
     const poc = QuantumPortalPocTest__factory.connect(await gate.quantumPortalPoc(), signer);
-    return this.connect(signer, await gate.quantumPortalLedgerMgr(), poc.address, await poc.feeToken());
+    return connect(signer, await gate.quantumPortalLedgerMgr(), poc.address, await poc.feeToken(), gateway);
   },
 
-  connect: async (signer, mgr, portal, token, gateway) => {
-    const mgrC = QuantumPortalLedgerMgrTest__factory.connect(mgr, signer);
-    const chainId = (await mgrC.CHAIN_ID()).toNumber();
-    return {
-      chainId,
-      mgr: mgrC,
-      portal: QuantumPortalPocTest__factory.connect(portal, signer),
-      token:  QpFeeToken__factory.connect(token, signer),
-      gateway: QuantumPortalGatewayDEV__factory.connect(gateway, signer),
-      state: QuantumPortalState__factory.connect(await mgrC.state(), signer),
-    };
-  },
 
   mine: async (chain1, chain2) => {
     const isBlRead = await chain1.mgr.isLocalBlockReady(chain2.chainId);
@@ -75,10 +98,15 @@ module.exports = {
         console.log('Local block was not ready... Try later.');
         return;
     }
-    const nonce = 1; //TODO: GEt the last nonce
+    const lastBlock = await chain2.mgr.lastRemoteMinedBlock(chain1.chainId);
+    const nonce = Number(lastBlock.nonce || 0) + 1;
     let key = (await chain1.mgr.getBlockIdx(chain2.chainId, nonce)).toString();
     const txLen = await chain1.state.getLocalBlockTransactionLength(key);
-    console.log('Tx len for block', key, 'is', txLen.toString(), nonce);
+    console.log('Tx len for block', key, 'is', txLen.toString(), 'nonce:', nonce);
+    if (txLen.toString() === '0') {
+      console.log('Nothing to mine');
+      return;
+    }
     let tx = await chain1.state.getLocalBlockTransaction(key, 0); 
     const txs = [{
                 token: tx.token.toString(),
@@ -111,7 +139,7 @@ module.exports = {
         const salt = DUMMY_SALT;
         const finalizersHash = DUMMY_SALT;
 
-        const gas = await chain2.mgr.estimateGas.finalize(sourceChainId,
+        const gas = await chain2.mgr.estimateGas.finalize(chain1.chainId,
             blockNonce,
             [],
             finalizersHash,
