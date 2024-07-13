@@ -8,7 +8,15 @@ const { QpFeeToken__factory } = require('../contracts/dist/typechain-types/facto
 const DUMMY_EXPIRY = Math.round(Date.now()/1000);
 const DUMMY_SALT = '0x55bc0903bc420ed06691a01e7fa1ab13120158c63101e1ace9e9ee3dfb87963b';
 
+class NotDeployedError extends Error {
+  constructor(contract) {
+    super(`Contract ${contract} is not deployed.`);
+    this.contract = contract;
+  }
+}
+
 module.exports = {
+  NotDeployedError,
   deploy: async (signer, chainId) => {
     const depF = new DeployQp__factory(signer);
     const dep = await depF.deploy();
@@ -41,6 +49,9 @@ module.exports = {
       throw new Error('No gateway provided');
     }
     const gate = QuantumPortalGatewayDEV__factory.connect(gateway, signer);
+    if (!await gate.deployed()) {
+      throw new NotDeployedError(gate);
+    }
     const poc = QuantumPortalPocTest__factory.connect(await gate.quantumPortalPoc(), signer);
     return this.connect(signer, await gate.quantumPortalLedgerMgr(), poc.address, await poc.feeToken());
   },

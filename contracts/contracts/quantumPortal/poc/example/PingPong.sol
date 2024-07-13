@@ -8,6 +8,7 @@ import "hardhat/console.sol";
  * @notice Example application that ping/pongs on target chains until there is no more gas to pay
  */
 contract PingPong is WithQp, WithRemotePeers {
+    string constant public VERSION = "0.0.1";
     uint public counter = 0;
     uint64 remoteChainId;
     uint txGas;
