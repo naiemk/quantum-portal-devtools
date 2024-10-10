@@ -1,5 +1,4 @@
-import { Psbt, Network } from 'bitcoinjs-lib';
-import { ECPairFactory } from 'ecpair';
+import { Psbt, Network, Payment, Transaction } from 'bitcoinjs-lib';
 import { AbiCoder } from 'ethers';
 import { Buffer } from 'buffer';
 import { InscriptionUtils } from './InscriptionUtils';
@@ -26,19 +25,20 @@ export class BtfdUtils {
 
   static async createPsbt(
     network: Network,
+    qpAddress: string,
     from: string,
+    fromPublicKey: Buffer,
     remoteCall: BtfdRemoteCall,
-    signerToHex: (t: Psbt) => Promise<string> ): Promise<[Psbt, Psbt]> {
-    const inscriptionPsbt = new Psbt({network});
-    const revealPsbt: any = new Psbt({network});
+    signerToHex: (t: Psbt) => Promise<string>,
+    ): Promise<[Transaction, Transaction]> {
 
     // Create the inscription PSBT
-    await this.createInscriptionPsbt(from, inscriptionPsbt, remoteCall);
+    const [commitTx, commitPayment] = await BtfdUtils.createInscriptionPsbt(network, from, fromPublicKey, remoteCall, signerToHex);
 
     // Create the reveal PSBT
-    await this.createRevealPsbt(from, revealPsbt, remoteCall);
+    const revealPsbt = await this.createRevealPsbt(network, qpAddress, from, fromPublicKey, commitTx, commitPayment, remoteCall, signerToHex);
 
-    return [inscriptionPsbt, revealPsbt];
+    return [commitTx, revealPsbt];
   }
 
   private static async createInscriptionPsbt(
@@ -47,44 +47,42 @@ export class BtfdUtils {
       fromPublicKey: Buffer,
       remoteCall: BtfdRemoteCall,
       signerHex: (p: Psbt) => Promise<string>,
-      ): Promise<void> {
-    // TODO: Implement the logic for creating the inscription PSBT
+      ): Promise<[Transaction, Payment]> {
     const encodedRemoteCall = BtfdUtils.encodeRemoteCall(remoteCall);
     const inscription = InscriptionUtils.createTextInscription(encodedRemoteCall);
-    const commitPayment = InscriptionUtils.createCommitTx(network, fromPublicKey, inscription); 
+    const commitOutput = InscriptionUtils.createCommitTx(network, fromPublicKey, inscription); 
 
     // Creating the commit transaction
     const mempool = mempoolJS();
     const addressTxsUtxo = await mempool.bitcoin.addresses.getAddressTxsUtxo({address: from});
     const commitInput = InscriptionUtils.standardInput(network, from, fromPublicKey, addressTxsUtxo);
-    const inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitPayment, commitInput);
+    const inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitOutput, commitInput);
 
     // Sign the PSBT, and return hex encoded result
     const commitPsbtHex = await signerHex(inscriptionPsbt);
-    const commitPsbt = Psbt.fromHex(commitPsbtHex);
+    const commitPsbt =  InscriptionUtils.finalizeCommitPsbt(Psbt.fromHex(commitPsbtHex));
+    return [commitPsbt.extractTransaction(), commitOutput];
   }
 
-  private static async createRevealPsbt(from: string, psbt: Psbt, remoteCall: BtfdRemoteCall): Promise<void> {
-    // TODO: Implement the logic for creating the reveal PSBT
-    // 1. Add input UTXO from remoteCall, including sats sent to QP_WALLET
-    // psbt.addInput({
-    //   hash: ..., // Transaction hash of the UTXO
-    //   index: ..., // Output index of the UTXO
-    //   witnessUtxo: ..., // Witness UTXO data
-    // });
-    
-    // 2. Add outputs (reveal transaction output, change output if needed)
-    // psbt.addOutput({
-    //   address: remoteCall.beneficiary,
-    //   value: ..., // Calculate the correct value based on remoteCall.amount and fees
-    // });
-    
-    // 3. Add any necessary metadata
-    // psbt.addOutput({
-    //   script: ..., // Any additional script data needed for the reveal transaction
-    //   value: 0, // OP_RETURN outputs typically have 0 value
-    // });
-  }
+  private static async createRevealPsbt(
+      network: Network,
+      qpAddress: string,
+      from: string,
+      fromPublicKey: Buffer,
+      commitTx: Transaction,
+      commitPayment: Payment,
+      call: BtfdRemoteCall,
+      signerToHex: (t: Psbt) => Promise<string>,
+    ): Promise<Transaction> {
+    const mempool = mempoolJS();
+    const addressTxsUtxo = await mempool.bitcoin.addresses.getAddressTxsUtxo({address: from});
+    // TODO: Take the amount for the commit tx fee, from commitPsbt inputs, out of the utxo from addressTxsUtxo
+    const revealPayment = InscriptionUtils.standardInput(network, from, fromPublicKey, addressTxsUtxo);
+    const reveal = InscriptionUtils.createRevealPsbt(network, qpAddress, revealPayment, commitPayment, commitTx, addressTxsUtxo);
 
-  // TODO: Add any additional helper methods as needed
+    // Sign the PSBT, and return hex encoded result
+    const revealPsbtHex = await signerToHex(reveal);
+    const revealPsbt =  InscriptionUtils.finalizeRevealPsbt(Psbt.fromHex(revealPsbtHex), commitPayment);
+    return revealPsbt.extractTransaction();
+  }
 }

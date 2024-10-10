@@ -1,4 +1,5 @@
-import { script, opcodes, payments, Network, Payment, Psbt, initEccLib } from 'bitcoinjs-lib';
+import { script, opcodes, payments, Network, Payment, Psbt, initEccLib, Transaction } from 'bitcoinjs-lib';
+import { witnessStackToScriptWitness } from 'bitcoinjs-lib/src/psbt/psbtutils';
 import { TransactionInput } from 'bitcoinjs-lib/src/psbt'
 import { PsbtInput } from 'bip174';
 import { Buffer } from 'buffer';
@@ -59,9 +60,9 @@ export class InscriptionUtils {
     return scriptTaproot!;
   }
 
-  static commitPsbt(network: Network, commitPayment: Payment, commitInput: CommitInput): Psbt {
+  static commitPsbt(network: Network, commitOutput: Payment, commitInput: CommitInput): Psbt {
     assert(network, 'network is required');
-    assert(commitPayment, 'commitPayment is required');
+    assert(commitOutput, 'commitOutput is required');
     assert(commitInput, 'input is required');
     // Create a new Psbt (Partially Signed Bitcoin Transaction)
     const psbt = new Psbt({ network });
@@ -69,24 +70,24 @@ export class InscriptionUtils {
     // Add the UTXOs as inputs to the transaction
     psbt.addInput({
       ...commitInput.input,
-      witnessUtxo: {
-        script: commitPayment.output!,
-        value: commitInput.sendAmount + commitInput.fee,
-      },
-      tapInternalKey: commitPayment.internalPubkey,
-      tapMerkleRoot: commitPayment.hash,
-      tapLeafScript: [
-        {
-          leafVersion: commitPayment.redeemVersion!,
-          script: commitPayment.redeem!.output!,
-          controlBlock: commitPayment.witness![commitPayment.witness!.length - 1],
-        },
-      ],
+      // witnessUtxo: {
+      //   script: commitOutput.output!,
+      //   value: commitInput.sendAmount + commitInput.fee,
+      // },
+      // tapInternalKey: commitOutput.internalPubkey,
+      // tapMerkleRoot: commitOutput.hash,
+      // tapLeafScript: [
+      //   {
+      //     leafVersion: commitOutput.redeemVersion!,
+      //     script: commitOutput.redeem!.output!,
+      //     controlBlock: commitOutput.witness![commitOutput.witness!.length - 1],
+      //   },
+      // ],
     });
 
     psbt.addOutput({
       value: commitInput.sendAmount,
-      address: commitPayment.address!,
+      address: commitOutput.address!,
     });
     psbt.addOutput({
       value: commitInput.refundAmount,
@@ -98,6 +99,67 @@ export class InscriptionUtils {
   static finalizeCommitPsbt(psbt: Psbt) {
     assert(psbt, 'psbt is required');
     psbt.finalizeAllInputs();
+    return psbt;
+  }
+
+  static createRevealPsbt(
+      network: Network,
+      qpAddress: string,
+      revealPayment: CommitInput,
+      commitPayment: Payment, // First output of the previous commit transaction
+      commitTx: Transaction,
+      addressTxsUtxo: AddressTxsUtxo[]
+    ): Psbt {
+    assert(network, 'network is required');
+    assert(revealPayment, 'revealPayment is required');
+    assert(addressTxsUtxo, 'addressTxsUtxo is required');
+    const psbt = new Psbt({ network });
+    // Add input from user for the btc amount,
+    // Add input from the commit tx to be revealed
+    // Add output to the QP address
+    // Add output to the refund address
+    psbt.addInput({
+      ...revealPayment.input,
+    });
+    psbt.addInput({
+      hash: commitTx.getHash(),
+      index: 0,
+      witnessUtxo: {
+        script: commitPayment.output!,
+        value: revealPayment.sendAmount + revealPayment.fee,
+      },
+      tapInternalKey: commitPayment.internalPubkey,
+      tapMerkleRoot: commitPayment.hash,
+      tapLeafScript: [
+        {
+          leafVersion: commitPayment.redeemVersion!,
+          script: commitPayment.redeem!.output!,
+          controlBlock: commitPayment.witness![commitPayment.witness!.length - 1],
+        },
+      ],
+    });
+    psbt.addOutput({
+      value: revealPayment.sendAmount + revealPayment.fee,
+      address: qpAddress,
+    });
+    psbt.addOutput({
+      value: revealPayment.refundAmount,
+      address: revealPayment.refundAddress,
+    });
+    return psbt;
+  }
+
+  static finalizeRevealPsbt(psbt: Psbt, psbtPayment: Payment) {
+    assert(psbt, 'psbt is required');
+    const customFinalizer = (_inputIndex: number, input: any) => {
+        const witness = [input.tapScriptSig[0].signature]
+            .concat(psbtPayment.redeem!.output)
+            .concat(input.controlBlock)
+        return {
+            finalScriptWitness: witnessStackToScriptWitness(witness),
+        }
+    }
+    psbt.finalizeInput(1, customFinalizer);
     return psbt;
   }
 
