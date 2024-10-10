@@ -56,7 +56,6 @@ export class InscriptionUtils {
       network,
     })
     assert(!!scriptTaproot?.hash, 'scriptTaproot.hash was note created');
-    const revealAddress = scriptTaproot.address
     return scriptTaproot!;
   }
 
@@ -67,40 +66,38 @@ export class InscriptionUtils {
     // Create a new Psbt (Partially Signed Bitcoin Transaction)
     const psbt = new Psbt({ network });
 
-    // SendAmount for inscription
-    const cblock = Buffer.from(commitPayment.witness?.[commitPayment.witness.length - 1]!).toString('hex');
-    const outputScript = commitPayment.output;
-    const tapLeafScript = {
-        leafVersion: commitPayment.redeemVersion!, // 192 0xc0
-        script: outputScript!,
-        controlBlock: Buffer.from(cblock, 'hex'),
-    }
-
     // Add the UTXOs as inputs to the transaction
-    psbt.addInput(commitInput.input);
+    psbt.addInput({
+      ...commitInput.input,
+      witnessUtxo: {
+        script: commitPayment.output!,
+        value: commitInput.sendAmount + commitInput.fee,
+      },
+      tapInternalKey: commitPayment.internalPubkey,
+      tapMerkleRoot: commitPayment.hash,
+      tapLeafScript: [
+        {
+          leafVersion: commitPayment.redeemVersion!,
+          script: commitPayment.redeem!.output!,
+          controlBlock: commitPayment.witness![commitPayment.witness!.length - 1],
+        },
+      ],
+    });
+
     psbt.addOutput({
-        value: commitInput.sendAmount, // generally 1000 for nfts, 549 for brc20
-        address: commitPayment.address!,
+      value: commitInput.sendAmount,
+      address: commitPayment.address!,
     });
     psbt.addOutput({
-        value: commitInput.refundAmount,
-        address: commitInput.refundAddress,
+      value: commitInput.refundAmount,
+      address: commitInput.refundAddress,
     });
     return psbt;
   }
 
   static finalizeCommitPsbt(psbt: Psbt) {
     assert(psbt, 'psbt is required');
-    // const customFinalizer = (_inputIndex, input) => {
-    //     const witness = [input.tapScriptSig[0].signature]
-    //         .concat(outputScript)
-    //         .concat(tapLeafScript.controlBlock)
-    //     return {
-    //         finalScriptWitness: witnessStackToScriptWitness(witness),
-    //     }
-    // }
     psbt.finalizeAllInputs();
-    // psbt.finalizeInput(0, customFinalizer)
     return psbt;
   }
 
