@@ -1,5 +1,6 @@
 const bitcoin = require('bitcoinjs-lib');
 const axios = require('axios');
+const { ECPairFactory } = require('ecpair');
 const ecc = require('tiny-secp256k1');
 const ElectrumClient = require('electrum-client');
 const ECPair = ECPairFactory(ecc);

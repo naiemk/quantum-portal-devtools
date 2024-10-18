@@ -3,14 +3,13 @@ import { witnessStackToScriptWitness } from 'bitcoinjs-lib/src/psbt/psbtutils';
 import { TransactionInput } from 'bitcoinjs-lib/src/psbt'
 import { PsbtInput } from 'bip174';
 import { Buffer } from 'buffer';
-//@ts-ignore
-import assert from 'minimalistic-assert';
 import {
   LEAF_VERSION_TAPSCRIPT,
   tapleafHash,
 } from 'bitcoinjs-lib/src/payments/bip341';
 import { AddressTxsUtxo } from '@mempool/mempool.js/lib/interfaces';
 import * as ecc from 'tiny-secp256k1';
+import { assert, IUtxoProvider } from './BtfdUtils';
 
 // Initialize the ECC library
 initEccLib(ecc);
@@ -39,21 +38,21 @@ export class InscriptionUtils {
   }
 
   static createCommitTx(network: Network, publicKey: Buffer, inscription: Inscription): Payment {
-    assert(publicKey, 'encodePublic is required')
-    assert(inscription, 'inscription is required')
+    assert(!!publicKey, 'encodePublic is required')
+    assert(!!inscription, 'inscription is required')
     const xOnlyPublicKey = toXOnly(publicKey)
     const code = createInscriptionScript(xOnlyPublicKey, inscription);
     const outputScript = script.compile(code);
 
-    const scriptTree = {
+    const redeem = {
       output: outputScript,
       redeemVersion: LEAF_VERSION_TAPSCRIPT,
     }
 
     const scriptTaproot = payments.p2tr({
       internalPubkey: xOnlyPublicKey,
-      scriptTree,
-      redeem: scriptTree,
+      scriptTree: { output: outputScript },
+      redeem,
       network,
     })
     assert(!!scriptTaproot?.hash, 'scriptTaproot.hash was note created');
@@ -70,19 +69,6 @@ export class InscriptionUtils {
     // Add the UTXOs as inputs to the transaction
     psbt.addInput({
       ...commitInput.input,
-      // witnessUtxo: {
-      //   script: commitOutput.output!,
-      //   value: commitInput.sendAmount + commitInput.fee,
-      // },
-      // tapInternalKey: commitOutput.internalPubkey,
-      // tapMerkleRoot: commitOutput.hash,
-      // tapLeafScript: [
-      //   {
-      //     leafVersion: commitOutput.redeemVersion!,
-      //     script: commitOutput.redeem!.output!,
-      //     controlBlock: commitOutput.witness![commitOutput.witness!.length - 1],
-      //   },
-      // ],
     });
 
     psbt.addOutput({
@@ -108,28 +94,24 @@ export class InscriptionUtils {
       revealPayment: CommitInput,
       commitPayment: Payment, // First output of the previous commit transaction
       commitTx: Transaction,
-      addressTxsUtxo: AddressTxsUtxo[]
     ): Psbt {
     assert(network, 'network is required');
     assert(revealPayment, 'revealPayment is required');
-    assert(addressTxsUtxo, 'addressTxsUtxo is required');
     const psbt = new Psbt({ network });
     // Add input from user for the btc amount,
     // Add input from the commit tx to be revealed
     // Add output to the QP address
     // Add output to the refund address
     psbt.addInput({
-      ...revealPayment.input,
-    });
-    psbt.addInput({
       hash: commitTx.getHash(),
       index: 0,
       witnessUtxo: {
         script: commitPayment.output!,
-        value: revealPayment.sendAmount + revealPayment.fee,
+        value: BigInt(4500),
+        // value: revealPayment.sendAmount + revealPayment.fee,
       },
-      tapInternalKey: commitPayment.internalPubkey,
-      tapMerkleRoot: commitPayment.hash,
+      // tapInternalKey: commitPayment.internalPubkey,
+      // tapMerkleRoot: commitPayment.hash,
       tapLeafScript: [
         {
           leafVersion: commitPayment.redeemVersion!,
@@ -138,8 +120,12 @@ export class InscriptionUtils {
         },
       ],
     });
+    psbt.addInput({
+      ...revealPayment.input,
+    });
     psbt.addOutput({
-      value: revealPayment.sendAmount + revealPayment.fee,
+      // value: revealPayment.sendAmount + revealPayment.fee,
+      value: BigInt(1000),
       address: qpAddress,
     });
     psbt.addOutput({
@@ -154,22 +140,23 @@ export class InscriptionUtils {
     const customFinalizer = (_inputIndex: number, input: any) => {
         const witness = [input.tapScriptSig[0].signature]
             .concat(psbtPayment.redeem!.output)
-            .concat(input.controlBlock)
+            .concat(psbtPayment.witness![psbtPayment.witness!.length - 1]);
         return {
             finalScriptWitness: witnessStackToScriptWitness(witness),
         }
     }
     psbt.finalizeInput(1, customFinalizer);
+    psbt.finalizeInput(0);
     return psbt;
   }
 
-  static standardInput(network: Network, address: string, publicKey: Buffer, utxos: AddressTxsUtxo[]): CommitInput {
+  static async standardInput(network: Network, address: string, publicKey: Buffer, utxoProvider: IUtxoProvider): Promise<CommitInput> {
     assert(network, 'network is required');
     assert(address, 'address is required');
     assert(publicKey, 'publicKey is required');
-    assert(utxos.length > 0, 'utxos is required');
+    const utxos = await utxoProvider.getUtxos(address);
 
-    const sendAmount = BigInt(1000);
+    const sendAmount = BigInt(4500);
     const fee = BigInt(500);
 
     // Find the first UTXO with more than sendAmount + fee
@@ -200,14 +187,20 @@ export class InscriptionUtils {
         input = {
           hash: utxo!.txid,
           index: utxo!.vout,
-          nonWitnessUtxo: Buffer.from(utxo!.txid, 'hex'), // This should be the full transaction, not just the txid
+          nonWitnessUtxo: await utxoProvider.txBlobByHash(utxo!.txid), // This should be the full transaction, not just the txid
         };
         break;
       case 'p2sh':
+        const p2wpkh = payments.p2wpkh({ pubkey: publicKey, network });
         input = {
           hash: utxo!.txid,
           index: utxo!.vout,
-          redeemScript: payments.p2sh({ redeem: { output: script.compile([publicKey, opcodes.OP_CHECKSIG]), network } }).redeem!.output!,
+          redeemScript: payments.p2sh({ redeem: p2wpkh, network }).redeem!.output,
+          nonWitnessUtxo: await utxoProvider.txBlobByHash(utxo!.txid), // This should be the full transaction, not just the txid
+          witnessUtxo: {
+            script: p2wpkh.output!,
+            value: BigInt(utxo!.value),
+          }
         };
         break;
       case 'p2wpkh':

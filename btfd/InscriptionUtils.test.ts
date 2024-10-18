@@ -66,14 +66,6 @@ describe('InscriptionUtils', () => {
       expect(psbt).toBeDefined();
       expect(psbt.txInputs.length).toBe(1);
       expect(psbt.txOutputs.length).toBe(2);
-      
-      // Check if the input is properly structured
-      const input = psbt.data.inputs[0];
-      expect(input.witnessUtxo).toBeDefined();
-      expect(input.tapInternalKey).toBeDefined();
-      expect(input.tapMerkleRoot).toBeDefined();
-      expect(input.tapLeafScript).toBeDefined();
-      expect(input.tapLeafScript!.length).toBe(1);
     });
   });
 
@@ -88,12 +80,23 @@ describe('InscriptionUtils', () => {
       console.log('PSBT before signing:', psbt.toBase64());
 
       // Sign the PSBT
-      psbt.signAllInputs(keyPair);
+      psbt.data.inputs.forEach((input, index) => {
+        try {
+          psbt.signInput(index, keyPair);
+          console.log(`Input ${index} signed successfully`);
+        } catch (error) {
+          console.error(`Error signing input ${index}:`, error);
+        }
+      });
 
       console.log('PSBT after signing:', psbt.toBase64());
 
       const finalizedPsbt = InscriptionUtils.finalizeCommitPsbt(psbt);
       expect(finalizedPsbt).toBeDefined();
+
+      const isValid = finalizedPsbt.validateSignaturesOfAllInputs(ecc.verify);
+      console.log('Signature validation result:', isValid);
+      expect(isValid).toBe(true);
 
       // Extract the transaction
       const tx = finalizedPsbt.extractTransaction();

@@ -1,0 +1,75 @@
+services:
+  web:
+    network_mode: "host"        
+    environment:
+      FRONTEND_HTTP_PORT: "8080"
+      BACKEND_MAINNET_HTTP_HOST: 127.0.0.1
+    image: mempool/frontend:latest
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 1m
+    command: "./wait-for 127.0.0.1:3306 --timeout=720 -- nginx -g 'daemon off;'"
+    ports:
+      - 80:8080
+  api:
+    network_mode: "host"        
+    environment:
+      MEMPOOL_BACKEND: "none"
+      ELECTRUM_HOST: "localhost"
+      ELECTRUM_PORT: "50000"
+      ELECTRUM_TLS_ENABLED: "false"
+      CORE_RPC_HOST: "localhost"
+      CORE_RPC_PORT: "18443"
+      CORE_RPC_USERNAME: "admin1"
+      CORE_RPC_PASSWORD: "123"
+      CORE_RPC_TIMEOUT: "60000"
+      DATABASE_ENABLED: "true"
+      DATABASE_HOST: "localhost"
+      DATABASE_DATABASE: "mempool"
+      DATABASE_USERNAME: "mempool"
+      DATABASE_PASSWORD: "mempool"
+      STATISTICS_ENABLED: "true"
+    image: mempool/backend:latest
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 1m
+    command: "./wait-for-it.sh localhost:3306 --timeout=720 --strict -- ./start.sh"  # Use wait-for-it to wait for Bitcoin Core RPC
+    volumes:
+      - ./data:/backend/cache
+  db:
+    network_mode: "host"        
+    environment:
+      MYSQL_DATABASE: "mempool"
+      MYSQL_USER: "mempool"
+      MYSQL_PASSWORD: "mempool"
+      MYSQL_ROOT_PASSWORD: "admin"
+    image: mariadb:10.5.21
+    user: "1000:1000"
+    restart: on-failure
+    stop_grace_period: 1m
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+  # bitcoin-core:
+  #   image: ruimarinho/bitcoin-core:latest
+  #   container_name: bitcoin-core
+  #   ports:
+  #     - "18443:18443"  # Expose RPC port for external access (regtest)
+  #     - "18444:18444"  # Expose P2P port (regtest)
+  #   command: ["bitcoind", "-regtest", "-rpcbind=0.0.0.0", "-rpcallowip=0.0.0.0/0", "-rpcport=18443", "-rpcuser=mempool", "-rpcpassword=mempool", "-txindex=1", "-server=1", "-listen=1"]
+  #   volumes:
+  #     - ./bitcoin:/home/bitcoin/.bitcoin  # Persist data
+  #   restart: always
+  # electrs:
+  #   image: ghcr.io/vulpemventures/electrs:latest
+  #   container_name: electrs
+  #   entrypoint: /bin/bash
+  #   command: "/exec.sh"
+  #   depends_on:
+  #     - bitcoin-core
+  #   ports:
+  #     - 60401:60401
+  #     - 3002:3002
+  #   volumes:
+  #     - ./bitcoin:/config
+  #     - ./exec.sh:/exec.sh
+  #   restart: always
