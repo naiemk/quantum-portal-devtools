@@ -1,10 +1,11 @@
-import { networks, payments } from 'bitcoinjs-lib';
+import { networks, payments, Transaction } from 'bitcoinjs-lib';
 // Explicitly import Jest types
 import { jest, expect, describe, it } from '@jest/globals';
 import { BtfdRemoteCall, BtfdUtils } from '../BtfdUtils';
 import { ECPairFactory } from 'ecpair';
 import bs58check from 'bs58check';
 import * as ecc from 'tiny-secp256k1';
+import { randomBytes } from 'crypto';
 const ECPair = ECPairFactory(ecc);
 
 describe('BtfdUtils System Test', () => {
@@ -14,8 +15,9 @@ describe('BtfdUtils System Test', () => {
       remoteContract: '0x1234567890123456789012345678901234567890',
       remoteMethodCall: '0x1234567890abcdef',
       beneficiary: '0x0987654321098765432109876543210987654321',
-      amount: '0.001',
-      fee: '0.0001',
+      salt: '0x' + randomBytes(32).toString('hex'),
+      amountSats: BigInt(1000000),
+      feeSats: BigInt(1000),
     };
     const QP_ADDRESS = '2MxFYZjevGc9Xm8m3ackiSrcj4YQ2i4uMGH';
     const from = '2NBNwx58nRuajywbNs8ZZztZBi4A3vMeomT';
@@ -35,24 +37,22 @@ describe('BtfdUtils System Test', () => {
     expect(address!).toBe(from); //'Addresses could not be confirmed');
 
     const provider = BtfdUtils.utxoProvider(networks.regtest, 'http://localhost:3000', 'blockstream');
-    const signer = ECPair.fromPrivateKey(fromSk);
     const [tx1, tx2] = await BtfdUtils.createPsbt(
       networks.regtest,
       QP_ADDRESS,
       from,
       Buffer.from(fromPk),
       remoteCall,
-      async psbt => psbt.signAllInputs(signer).toHex(),
-      // async (psbt: Psbt) => {
-      //   psbt.signInput(0, signer)
-      //   psbt.signInput(1, signer)
-      //   return psbt.toHex();
-      // },
+      async psbt => {
+          const signer = ECPair.fromPrivateKey(fromSk);
+          return psbt.signInput(0, signer).toHex();
+      },
       provider
     );
-    // const txid1 = await provider.broadcastTx(Buffer.from(tx1.toHex(), 'hex'));
+    const txid1 = await provider.broadcastTx(tx1.toHex());
+    console.log('Txid1:', txid1);
     const txid2 = await provider.broadcastTx(tx2.toHex());
-    console.log('Txid1:', 'Txid2:', txid2);
+    console.log('Txid2:', txid2);
     console.log('Transactions', tx1, tx2);
   }, 1000 * 10000);
 });

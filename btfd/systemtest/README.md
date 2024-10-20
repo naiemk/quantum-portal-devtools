@@ -1,11 +1,13 @@
 # Tests using bitgon regtest
 
+We use nigiri to run a set of bitcoin node and peripherals.
+
 ```bash
-$ docker-compose up
+$ nigiri start
 ```
 
 ```bash
-$ bitcoin-cli -rpcconnect=0.0.0.0 -rpcport=18443 -rpcuser=mempool -rpcpassword=mempool -getinfo
+$ bitcoin-cli -rpcconnect=0.0.0.0 -rpcport=18443 -rpcuser=admin1 -rpcpassword=123 -getinfo
 ```
 
 ## Set config for bitcoin-cli
@@ -15,8 +17,8 @@ $ vim ~/Library/Application\ Support/Bitcoin/bitcoin.conf
 regtest=1
 rpcconnect=0.0.0.0
 rpcport=18443
-rpcuser=mempool
-rpcpassword=mempool
+rpcuser=admin1
+rpcpassword=123
 ```
 
 ## Create wallet
