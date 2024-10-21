@@ -1,5 +1,13 @@
 # BFTD toolkit
 
+## Intstall
+
+```
+$ npm install 'https://gitpkg.vercel.app/ferrumnet/quantum-portal-devtools/btfd?main'
+```
+
+## Use
+
 A BTFD call, differs from a standard QP call by the sense that the call will be originated from the Bitcoin network.
 
 Dev tools for BTFD needs to include the following items at the minimum:
