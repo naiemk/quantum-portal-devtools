@@ -48,7 +48,7 @@ export class NetworkFeeEstimator {
         }
     }
     static estimateFee(feeRate, txLen) {
-        return BigInt(feeRate * 10000) * txLen / BigInt(10000);
+        return BigInt(Math.round(feeRate * 10000)) * txLen / BigInt(10000);
     }
 }
 //# sourceMappingURL=NetworkFeeEstimator.js.map
