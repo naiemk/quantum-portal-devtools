@@ -8,6 +8,7 @@
   "files": [
     "lib"
   ],
+  "version": "0.1.0",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "devDependencies": {
