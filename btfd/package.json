@@ -12,10 +12,10 @@
     "@types/node": "^22.7.5",
     "bun-types": "latest",
     "jest": "^29.7.0",
-    "ts-jest": "^29.2.5"
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
   },
   "dependencies": {
     "@mempool/mempool.js": "^2.3.0",
