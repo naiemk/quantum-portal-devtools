@@ -4,7 +4,7 @@
     "module": "ES2015",
     "target": "es2018",
     "moduleResolution": "Bundler",
-    "outDir": "dist",
+    "outDir": "lib",
     "rootDir": ".",
     "strict": true,
     "esModuleInterop": true,
@@ -19,6 +19,6 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "lib"
   ]
 }
