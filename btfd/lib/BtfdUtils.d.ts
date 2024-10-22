@@ -10,9 +10,12 @@ export interface BtfdRemoteCall {
     amountSats: bigint;
     feeSats: bigint;
 }
+export interface CreatePsbtOptions {
+    signerWillFinalize: boolean;
+}
 export declare class BtfdUtils {
     static encodeRemoteCall(remoteCall: BtfdRemoteCall): string;
-    static createPsbt(network: Network, qpAddress: string, from: string, fromPublicKey: Buffer, remoteCall: BtfdRemoteCall, signerToHex: (t: Psbt) => Promise<string>, utxoProvider?: IUtxoProvider): Promise<[Transaction, Transaction]>;
+    static createPsbt(network: Network, qpAddress: string, from: string, fromPublicKey: Buffer, remoteCall: BtfdRemoteCall, signerToHex: (t: Psbt) => Promise<string>, utxoProvider?: IUtxoProvider, options?: CreatePsbtOptions): Promise<[Transaction, Transaction]>;
     private static createInscriptionPsbt;
     private static createRevealPsbt;
     static utxoProvider(network: Network, endpoint: string, serverType: 'mempool' | 'blockstream'): IUtxoProvider;

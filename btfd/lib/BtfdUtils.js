@@ -12,33 +12,39 @@ export class BtfdUtils {
             remoteCall.beneficiary,
             remoteCall.salt]);
     }
-    static async createPsbt(network, qpAddress, from, fromPublicKey, remoteCall, signerToHex, utxoProvider = BtfdUtils.utxoProvider(network, 'http://localhost:3000', 'blockstream')) {
+    static async createPsbt(network, qpAddress, from, fromPublicKey, remoteCall, signerToHex, utxoProvider = BtfdUtils.utxoProvider(network, 'http://localhost:3000', 'blockstream'), options = { signerWillFinalize: false }) {
         // Create the inscription PSBT
-        const [commitTx, commitPayment, commitInput] = await BtfdUtils.createInscriptionPsbt(network, from, fromPublicKey, remoteCall, qpAddress, signerToHex, utxoProvider);
+        const [commitTx, commitPayment, commitInput] = await BtfdUtils.createInscriptionPsbt(network, from, fromPublicKey, remoteCall, qpAddress, signerToHex, utxoProvider, options);
         // Create the reveal PSBT
-        const revealPsbt = await this.createRevealPsbt(network, qpAddress, commitInput.sendAmountCommit, commitInput.sendAmountReveal, commitPayment, commitTx.getHash(), signerToHex);
+        const revealPsbt = await this.createRevealPsbt(network, qpAddress, commitInput.sendAmountCommit, commitInput.sendAmountReveal, commitPayment, commitTx.getHash(), signerToHex, options);
         return [commitTx, revealPsbt];
     }
-    static async createInscriptionPsbt(network, from, fromPublicKey, remoteCall, qpAddress, signerHex, utxoProvider) {
+    static async createInscriptionPsbt(network, from, fromPublicKey, remoteCall, qpAddress, signerHex, utxoProvider, options) {
         const encodedRemoteCall = BtfdUtils.encodeRemoteCall(remoteCall);
         const inscription = InscriptionUtils.createTextInscription(encodedRemoteCall);
         const commitOutput = InscriptionUtils.createCommitTx(network, fromPublicKey, inscription);
         const feeRate = await utxoProvider.getFeeRate();
         // Creating the commit transaction
         const commitInput = await InscriptionUtils.standardInput(network, from, fromPublicKey, remoteCall.amountSats + remoteCall.feeSats, NetworkFeeEstimator.estimateFee(feeRate, NetworkFeeEstimator.estimateLenForCommit(NetworkFeeEstimator.inputType(from, network))), NetworkFeeEstimator.estimateFee(feeRate, NetworkFeeEstimator.estimateLenForInscription(inscription.content.length, NetworkFeeEstimator.inputType(qpAddress, network))), utxoProvider);
-        const inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitOutput, commitInput);
+        let inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitOutput, commitInput);
         // Sign the PSBT, and return hex encoded result
         const commitPsbtHex = await signerHex(inscriptionPsbt);
-        const commitPsbt = InscriptionUtils.finalizeCommitPsbt(Psbt.fromHex(commitPsbtHex));
-        return [commitPsbt.extractTransaction(), commitOutput, commitInput];
+        inscriptionPsbt = Psbt.fromHex(commitPsbtHex);
+        if (!options.signerWillFinalize) {
+            inscriptionPsbt = InscriptionUtils.finalizeCommitPsbt(inscriptionPsbt);
+        }
+        return [inscriptionPsbt.extractTransaction(), commitOutput, commitInput];
     }
-    static async createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId, signerToHex) {
-        const reveal = InscriptionUtils.createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId);
+    static async createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId, signerToHex, options) {
+        let reveal = InscriptionUtils.createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId);
         // Sign the PSBT, and return hex encoded result
         const revealPsbtHex = await signerToHex(reveal);
-        const revealPsbt = InscriptionUtils.finalizeCommitPsbt(Psbt.fromHex(revealPsbtHex));
+        reveal = Psbt.fromHex(revealPsbtHex);
+        if (!options.signerWillFinalize) {
+            reveal = InscriptionUtils.finalizeCommitPsbt(reveal);
+        }
         // const revealPsbt =  InscriptionUtils.finalizeRevealPsbt(Psbt.fromHex(revealPsbtHex), commitPayment);
-        return revealPsbt.extractTransaction();
+        return reveal.extractTransaction();
     }
     static utxoProvider(network, endpoint, serverType) {
         if (serverType === 'mempool') {

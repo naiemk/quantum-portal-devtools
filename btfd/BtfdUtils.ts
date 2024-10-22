@@ -16,6 +16,10 @@ export interface BtfdRemoteCall {
   feeSats: bigint,
 }
 
+export interface CreatePsbtOptions {
+  signerWillFinalize: boolean;
+}
+
 export class BtfdUtils {
   static encodeRemoteCall(remoteCall: BtfdRemoteCall): string {
     return new AbiCoder().encode(
@@ -35,11 +39,12 @@ export class BtfdUtils {
     remoteCall: BtfdRemoteCall,
     signerToHex: (t: Psbt) => Promise<string>,
     utxoProvider: IUtxoProvider = BtfdUtils.utxoProvider(network, 'http://localhost:3000', 'blockstream'),
+    options: CreatePsbtOptions = { signerWillFinalize: false },
     ): Promise<[Transaction, Transaction]> {
 
     // Create the inscription PSBT
     const [commitTx, commitPayment, commitInput] = await BtfdUtils.createInscriptionPsbt(
-      network, from, fromPublicKey, remoteCall, qpAddress, signerToHex, utxoProvider);
+      network, from, fromPublicKey, remoteCall, qpAddress, signerToHex, utxoProvider, options);
 
     // Create the reveal PSBT
     const revealPsbt = await this.createRevealPsbt(
@@ -49,7 +54,8 @@ export class BtfdUtils {
       commitInput.sendAmountReveal,
       commitPayment,
       commitTx.getHash(),
-      signerToHex);
+      signerToHex,
+      options);
     return [commitTx, revealPsbt];
   }
 
@@ -61,6 +67,7 @@ export class BtfdUtils {
       qpAddress: string,
       signerHex: (p: Psbt) => Promise<string>,
       utxoProvider: IUtxoProvider,
+      options: CreatePsbtOptions,
       ): Promise<[Transaction, Payment, CommitInput]> {
     const encodedRemoteCall = BtfdUtils.encodeRemoteCall(remoteCall);
     const inscription = InscriptionUtils.createTextInscription(encodedRemoteCall);
@@ -78,12 +85,15 @@ export class BtfdUtils {
       NetworkFeeEstimator.estimateFee(
         feeRate, NetworkFeeEstimator.estimateLenForInscription(inscription.content.length, NetworkFeeEstimator.inputType(qpAddress, network))),
       utxoProvider);
-    const inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitOutput, commitInput);
+    let inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitOutput, commitInput);
 
     // Sign the PSBT, and return hex encoded result
     const commitPsbtHex = await signerHex(inscriptionPsbt);
-    const commitPsbt =  InscriptionUtils.finalizeCommitPsbt(Psbt.fromHex(commitPsbtHex));
-    return [commitPsbt.extractTransaction(), commitOutput, commitInput];
+    inscriptionPsbt =Psbt.fromHex(commitPsbtHex);
+    if (!options.signerWillFinalize) {
+      inscriptionPsbt =  InscriptionUtils.finalizeCommitPsbt(inscriptionPsbt);
+    }
+    return [inscriptionPsbt.extractTransaction(), commitOutput, commitInput];
   }
 
   private static async createRevealPsbt(
@@ -94,14 +104,18 @@ export class BtfdUtils {
       commitPayment: Payment,
       commitTxId: Uint8Array,
       signerToHex: (t: Psbt) => Promise<string>,
+      options: CreatePsbtOptions,
     ): Promise<Transaction> {
-    const reveal = InscriptionUtils.createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId);
+    let reveal = InscriptionUtils.createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId);
 
     // Sign the PSBT, and return hex encoded result
     const revealPsbtHex = await signerToHex(reveal);
-    const revealPsbt =  InscriptionUtils.finalizeCommitPsbt(Psbt.fromHex(revealPsbtHex));
+    reveal = Psbt.fromHex(revealPsbtHex);
+    if (!options.signerWillFinalize) {
+      reveal =  InscriptionUtils.finalizeCommitPsbt(reveal);
+    }
     // const revealPsbt =  InscriptionUtils.finalizeRevealPsbt(Psbt.fromHex(revealPsbtHex), commitPayment);
-    return revealPsbt.extractTransaction();
+    return reveal.extractTransaction();
   }
 
   static utxoProvider(network: Network, endpoint: string, serverType: 'mempool' | 'blockstream'): IUtxoProvider {
