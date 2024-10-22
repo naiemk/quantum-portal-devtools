@@ -2,7 +2,7 @@ import { Network, Payment, Psbt } from 'bitcoinjs-lib';
 import { TransactionInput } from 'bitcoinjs-lib/src/psbt';
 import { PsbtInput } from 'bip174';
 import { Buffer } from 'buffer';
-import { IUtxoProvider } from './BtfdUtils';
+import { IUtxoProvider } from './IUtxoProvider';
 export interface Inscription {
     contentType: Buffer;
     content: Buffer;

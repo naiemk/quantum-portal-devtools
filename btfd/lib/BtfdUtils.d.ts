@@ -1,6 +1,6 @@
 import { Psbt, Network, Transaction } from 'bitcoinjs-lib';
 import { Buffer } from 'buffer';
-import { AddressTxsUtxo } from '@mempool/mempool.js/lib/interfaces';
+import { IUtxoProvider } from './IUtxoProvider';
 export interface BtfdRemoteCall {
     remoteChainId: number;
     remoteContract: string;
@@ -11,7 +11,8 @@ export interface BtfdRemoteCall {
     feeSats: bigint;
 }
 export interface CreatePsbtOptions {
-    signerWillFinalize: boolean;
+    signerWillFinalize?: boolean;
+    feeRate?: number;
 }
 export declare class BtfdUtils {
     static encodeRemoteCall(remoteCall: BtfdRemoteCall): string;
@@ -20,10 +21,6 @@ export declare class BtfdUtils {
     private static createRevealPsbt;
     static utxoProvider(network: Network, endpoint: string, serverType: 'mempool' | 'blockstream'): IUtxoProvider;
 }
-export declare function assert(condition: any, msg: string): void;
-export interface IUtxoProvider {
-    getFeeRate(): Promise<number>;
-    getUtxos(address: string): Promise<AddressTxsUtxo[]>;
-    txBlobByHash(hash: string): Promise<Buffer>;
-    broadcastTx(tx: string): Promise<string>;
+export declare class BtfdCommonCalls {
+    static remoteTransferBtc(network: Network, to: string, amountSats: string, feeSats: string): BtfdRemoteCall;
 }

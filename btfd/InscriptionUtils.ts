@@ -5,13 +5,12 @@ import { PsbtInput } from 'bip174';
 import { Buffer } from 'buffer';
 import {
   LEAF_VERSION_TAPSCRIPT,
-  tapleafHash,
 } from 'bitcoinjs-lib/src/payments/bip341';
-import { AddressTxsUtxo } from '@mempool/mempool.js/lib/interfaces';
 import * as ecc from 'tiny-secp256k1';
-import { assert, IUtxoProvider } from './BtfdUtils';
+import { IUtxoProvider } from './IUtxoProvider';
 import { Taptree } from 'bitcoinjs-lib/src/types';
 import { NetworkFeeEstimator } from './NetworkFeeEstimator';
+import { assert } from './Common';
 
 // Initialize the ECC library
 initEccLib(ecc);

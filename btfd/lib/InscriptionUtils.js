@@ -3,8 +3,8 @@ import { witnessStackToScriptWitness } from 'bitcoinjs-lib/src/psbt/psbtutils';
 import { Buffer } from 'buffer';
 import { LEAF_VERSION_TAPSCRIPT, } from 'bitcoinjs-lib/src/payments/bip341';
 import * as ecc from 'tiny-secp256k1';
-import { assert } from './BtfdUtils';
 import { NetworkFeeEstimator } from './NetworkFeeEstimator';
+import { assert } from './Common';
 // Initialize the ECC library
 initEccLib(ecc);
 const encoder = new TextEncoder();

@@ -4,6 +4,7 @@ export type BtcAddressType = 'p2pkh' | 'p2sh' | 'p2wpkh' | 'p2wsh' | 'p2tr';
 
 export class NetworkFeeEstimator {
   static inputType(addr: string, network: Network): BtcAddressType {
+    console.log('Getting addr type for:', addr);
     try {
       const ver = address.fromBase58Check(addr).version;
       switch (ver) {

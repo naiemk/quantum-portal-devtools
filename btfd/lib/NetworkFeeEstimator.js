@@ -1,6 +1,7 @@
 import { address } from 'bitcoinjs-lib';
 export class NetworkFeeEstimator {
     static inputType(addr, network) {
+        console.log('Getting addr type for:', addr);
         try {
             const ver = address.fromBase58Check(addr).version;
             switch (ver) {

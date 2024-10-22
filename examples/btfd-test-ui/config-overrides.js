@@ -20,6 +20,7 @@ module.exports = function override(config) {
     'utf-8-validate': false,
     fs: false,
     path: false,
+    console: require.resolve("console-browserify"),
   });
   config.resolve.fallback = fallback;
   config.plugins = (config.plugins || []).concat([

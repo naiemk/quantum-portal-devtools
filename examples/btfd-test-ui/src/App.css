@@ -1,5 +1,6 @@
 .App {
   text-align: center;
+  width: 500px;
 }
 
 .App-logo {
@@ -28,6 +29,10 @@
   color: #61dafb;
 }
 
+.error-text {
+  color: red;
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);
@@ -35,4 +40,35 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.input-wide {
+  width: 400px;
+  align-items: center;
+}
+
+.input-mid {
+  width: 200px;
+  align-items: center;
+}
+
+.bordered {
+  border: 1px solid black;
+  padding: 10px;
+  margin: 10px;
+  border-radius: 15px;
+  min-width: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.value {
+  overflow-x: hidden;
 }
