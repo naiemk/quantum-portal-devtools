@@ -19,6 +19,8 @@ import './App.css';
 //   return psbt.signInput(0, kp).toHex();
 // }
 
+const NETWORK = 'regtest';
+
 const remoteCall = {
   remoteChainId: 1,
   remoteContract: '0x1234567890123456789012345678901234567890',
@@ -29,8 +31,26 @@ const remoteCall = {
   feeSats: BigInt(1000),
 };
 
+function apiEndpoint() {
+  return NETWORK === 'regtest' ? 'http://localhost:3000' : 'https://blockstream.info/api';
+}
+
+function explorerEndpoint() {
+  return NETWORK === 'regtest' ? 'http://localhost:5000' : 'https://blockstream.info';
+}
+
+function explorerlinkAddr(address) {
+  return `${explorerEndpoint()}/address/${address}`;
+}
+
+function explorerlinkTx(txid) {
+  return `${explorerEndpoint()}/tx/${txid}`;
+}
+
 function App() {
   const [unisatAddresses, setUnisatAddresses] = useState([]);
+  const [commitTx, setCommitTx] = useState('');
+  const [revealTx, setRevealTx] = useState('');
   const unisatExists = !!window.unisat;
   const wallet = unisatAddresses.length ? unisatAddresses[0] : null;
 
@@ -58,7 +78,7 @@ function App() {
       const from = wallet;
       const publicKey = await window.unisat.getPublicKey();
       console.log("publicKey", publicKey);
-      const provider = BtfdUtils.utxoProvider(networks.regtest, 'http://localhost:3000', 'blockstream');
+      const provider = BtfdUtils.utxoProvider(networks.regtest, apiEndpoint(), 'blockstream');
       const [tx1, tx2] = await BtfdUtils.createPsbt(
         networks.regtest,
         QP_ADDRESS,
@@ -84,8 +104,10 @@ function App() {
         { signerWillFinalize: true },
       );
       const txid1 = await provider.broadcastTx(tx1.toHex());
+      setCommitTx(txid1);
       console.log('Txid1:', txid1);
       const txid2 = await provider.broadcastTx(tx2.toHex());
+      setRevealTx(txid2);
       console.log('Txid2:', txid2);
       console.log('Transactions', tx1, tx2);
     } catch (e) {
@@ -103,8 +125,13 @@ function App() {
         onClick={() => !unisatAddresses.length ? handleConnectUniSat() : handleDisconnectUnisat()}>
           {unisatAddresses.length ? 'Disconnect' : 'Connect to BTC wallet'}</button>
       <br />
-      <h3>Wallet: {wallet}</h3>
+      <h3><a href={explorerlinkAddr(wallet)} target='_blank' rel="noreferrer">Wallet: {wallet}</a></h3>
       <button disabled={!wallet} onClick={() => handleExecute()}>Execute method on QP and send BTC</button>
+      <br />
+      <br />
+      <br />
+      {commitTx && <h3>Commit Tx: <a href={explorerlinkTx(commitTx)} target='_blank' rel="noreferrer">{commitTx}</a></h3>}<br/>
+      {revealTx && <h3>Reveal Tx: <a href={explorerlinkTx(revealTx)} target='_blank' rel="noreferrer">{revealTx}</a></h3>}
 
     </div>
   );
