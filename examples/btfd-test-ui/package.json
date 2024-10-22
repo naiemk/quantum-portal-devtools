@@ -1,0 +1,51 @@
+{
+  "name": "btfd-test-ui",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.1.1",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0",
+    "bitcoinjs-lib": "^7.0.0-rc.0",
+    "browserify": "^17.0.1",
+    "btfd": "file:../../btfd",
+    "buffer": "^6.0.3",
+    "bufferutil": "^4.0.8",
+    "ecpair": "^3.0.0-rc.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-native-randombytes": "^3.6.1",
+    "react-scripts": "5.0.1",
+    "readable-stream": "^4.5.2",
+    "tiny-secp256k1": "^2.2.3",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-app-rewired start",
+    "build": "react-app-rewired build",
+    "test": "react-app-rewired test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "react-app-rewired": "^2.2.1"
+  }
+}

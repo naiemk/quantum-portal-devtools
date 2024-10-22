@@ -1,10 +1,22 @@
-import { Psbt, Network, Payment, Transaction } from 'bitcoinjs-lib';
+import { Psbt, Network, Payment, Transaction, networks } from 'bitcoinjs-lib';
 import { AbiCoder } from 'ethers';
 import { Buffer } from 'buffer';
 import { CommitInput, InscriptionUtils } from './InscriptionUtils';
-import mempoolJS from '@mempool/mempool.js';
-import { AddressTxsUtxo, MempoolReturn } from '@mempool/mempool.js/lib/interfaces';
 import { NetworkFeeEstimator } from './NetworkFeeEstimator';
+import { BlockstreamUtxoProvider, IUtxoProvider, MempoolUtxoProvider } from './IUtxoProvider';
+import { assert } from 'console';
+import { randomBytes } from 'crypto';
+
+const BTFD_CHAIN_ID = {
+  [networks.regtest.wif]: 21321,
+  [networks.bitcoin.wif]: 12000, // TODO: Replace btfd chain ID
+}
+
+const BITCOIN_CONTRACT = {
+  [networks.regtest.wif]: '0x0987654321098765432109876543210987654321',
+  [networks.bitcoin.wif]: '0x0987654321098765432109876543210987654321', // TODO: Replace btfd chain ID
+}
+
 
 export interface BtfdRemoteCall {
   remoteChainId: number,
@@ -14,6 +26,11 @@ export interface BtfdRemoteCall {
   beneficiary: string,
   amountSats: bigint,
   feeSats: bigint,
+}
+
+export interface CreatePsbtOptions {
+  signerWillFinalize?: boolean;
+  feeRate?: number
 }
 
 export class BtfdUtils {
@@ -35,11 +52,19 @@ export class BtfdUtils {
     remoteCall: BtfdRemoteCall,
     signerToHex: (t: Psbt) => Promise<string>,
     utxoProvider: IUtxoProvider = BtfdUtils.utxoProvider(network, 'http://localhost:3000', 'blockstream'),
+    options: CreatePsbtOptions = { signerWillFinalize: false },
     ): Promise<[Transaction, Transaction]> {
+    assert(!!network, 'network is required');
+    assert(!!from, 'from is required');
+    assert(!!fromPublicKey, 'fromPublicKey is required');
+    assert(!!remoteCall, 'remoteCall is required');
+    assert(!!qpAddress, 'qpAddress is required');
+    assert(!!utxoProvider, 'utxoProvider is required');
+    assert(!!signerToHex, 'signerToHex is required');
 
     // Create the inscription PSBT
     const [commitTx, commitPayment, commitInput] = await BtfdUtils.createInscriptionPsbt(
-      network, from, fromPublicKey, remoteCall, qpAddress, signerToHex, utxoProvider);
+      network, from, fromPublicKey, remoteCall, qpAddress, signerToHex, utxoProvider, options);
 
     // Create the reveal PSBT
     const revealPsbt = await this.createRevealPsbt(
@@ -49,7 +74,8 @@ export class BtfdUtils {
       commitInput.sendAmountReveal,
       commitPayment,
       commitTx.getHash(),
-      signerToHex);
+      signerToHex,
+      options);
     return [commitTx, revealPsbt];
   }
 
@@ -61,11 +87,12 @@ export class BtfdUtils {
       qpAddress: string,
       signerHex: (p: Psbt) => Promise<string>,
       utxoProvider: IUtxoProvider,
+      options: CreatePsbtOptions,
       ): Promise<[Transaction, Payment, CommitInput]> {
     const encodedRemoteCall = BtfdUtils.encodeRemoteCall(remoteCall);
     const inscription = InscriptionUtils.createTextInscription(encodedRemoteCall);
     const commitOutput = InscriptionUtils.createCommitTx(network, fromPublicKey, inscription); 
-    const feeRate = await utxoProvider.getFeeRate();
+    const feeRate = options.feeRate || await utxoProvider.getFeeRate();
 
     // Creating the commit transaction
     const commitInput = await InscriptionUtils.standardInput(
@@ -78,12 +105,15 @@ export class BtfdUtils {
       NetworkFeeEstimator.estimateFee(
         feeRate, NetworkFeeEstimator.estimateLenForInscription(inscription.content.length, NetworkFeeEstimator.inputType(qpAddress, network))),
       utxoProvider);
-    const inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitOutput, commitInput);
+    let inscriptionPsbt = InscriptionUtils.commitPsbt(network, commitOutput, commitInput);
 
     // Sign the PSBT, and return hex encoded result
     const commitPsbtHex = await signerHex(inscriptionPsbt);
-    const commitPsbt =  InscriptionUtils.finalizeCommitPsbt(Psbt.fromHex(commitPsbtHex));
-    return [commitPsbt.extractTransaction(), commitOutput, commitInput];
+    inscriptionPsbt =Psbt.fromHex(commitPsbtHex);
+    if (!options.signerWillFinalize) {
+      inscriptionPsbt =  InscriptionUtils.finalizeCommitPsbt(inscriptionPsbt);
+    }
+    return [inscriptionPsbt.extractTransaction(), commitOutput, commitInput];
   }
 
   private static async createRevealPsbt(
@@ -94,14 +124,18 @@ export class BtfdUtils {
       commitPayment: Payment,
       commitTxId: Uint8Array,
       signerToHex: (t: Psbt) => Promise<string>,
+      options: CreatePsbtOptions,
     ): Promise<Transaction> {
-    const reveal = InscriptionUtils.createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId);
+    let reveal = InscriptionUtils.createRevealPsbt(network, qpAddress, commitedAmount, sendAmount, commitPayment, commitTxId);
 
     // Sign the PSBT, and return hex encoded result
     const revealPsbtHex = await signerToHex(reveal);
-    const revealPsbt =  InscriptionUtils.finalizeCommitPsbt(Psbt.fromHex(revealPsbtHex));
+    reveal = Psbt.fromHex(revealPsbtHex);
+    if (!options.signerWillFinalize) {
+      reveal =  InscriptionUtils.finalizeCommitPsbt(reveal);
+    }
     // const revealPsbt =  InscriptionUtils.finalizeRevealPsbt(Psbt.fromHex(revealPsbtHex), commitPayment);
-    return revealPsbt.extractTransaction();
+    return reveal.extractTransaction();
   }
 
   static utxoProvider(network: Network, endpoint: string, serverType: 'mempool' | 'blockstream'): IUtxoProvider {
@@ -115,71 +149,16 @@ export class BtfdUtils {
   }
 }
 
-export function assert(condition: any, msg: string) {
-  if (!condition) {
-    throw new Error(msg);
-  }
-}
-
-export interface IUtxoProvider {
-  getFeeRate(): Promise<number>;
-  getUtxos(address: string): Promise<AddressTxsUtxo[]>;
-  txBlobByHash(hash: string): Promise<Buffer>;
-  broadcastTx(tx: string): Promise<string>;
-}
-
-class MempoolUtxoProvider implements IUtxoProvider {
-  private mempool: MempoolReturn;
-  constructor(endpoint: string) {
-    this.mempool = mempoolJS({ hostname: endpoint }) as any;
-  }
-
-  async getFeeRate(): Promise<number> {
-    const fees = await this.mempool.fees.getFeesRecommended();
-    return fees.fastestFee;
-  }
-
-  async getUtxos(address: string): Promise<AddressTxsUtxo[]> {
-    return this.mempool.addresses.getAddressTxsUtxo(address);
-  }
-
-  async txBlobByHash(hash: string): Promise<Buffer> {
-    return Buffer.from(await this.mempool.transactions.getTxRaw(hash), 'hex');
-  }
-
-  async broadcastTx(tx: string): Promise<string> {
-    return this.mempool.transactions.postTx(tx) as any;
-  }
-}
-
-class BlockstreamUtxoProvider implements IUtxoProvider {
-  private endpoint: string;
-  constructor(endpoint: string) {
-    this.endpoint = endpoint;
-  }
-
-  async getFeeRate(): Promise<number> {
-    const response = await fetch(`${this.endpoint}/fee-estimates`);
-    const feeEstiamtes = await response.json() as any;
-    return Number(feeEstiamtes['1'] || feeEstiamtes['2'] || feeEstiamtes['3']);
-  }
-
-  async getUtxos(address: string): Promise<AddressTxsUtxo[]> {
-    const response = await fetch(`${this.endpoint}/address/${address}/utxo`);
-    return response.json() as any;
-  }
-
-  async txBlobByHash(hash: string): Promise<Buffer> {
-    const response = await fetch(`${this.endpoint}/tx/${hash}/hex`);
-    return Buffer.from(await response.text(), 'hex');
-  }
-
-  async broadcastTx(tx: string): Promise<string> {
-    // send the commit transaction to the network
-    const res = await fetch('http://localhost:3000/tx', { method: 'POST', body: tx });
-    const txid = await res.text();
-    console.log('broadcasted tx', txid);
-    assert(Buffer.from(txid, 'hex').length === 32, 'Invalid txid: ' + txid);
-    return txid;
+export class BtfdCommonCalls {
+  static remoteTransferBtc(network: Network, to: string, amountSats: string, feeSats: string): BtfdRemoteCall {
+    return {
+      remoteChainId: BTFD_CHAIN_ID[network.wif],
+      remoteContract: BITCOIN_CONTRACT[network.wif],
+      remoteMethodCall: '0x1234567890abcdef', // remoteaTransfer TODO: Replace with actual method call
+      amountSats: BigInt(amountSats),
+      feeSats: BigInt(feeSats),
+      beneficiary: to,
+      salt: '0x' + randomBytes(32).toString('hex'),
+    } as BtfdRemoteCall;
   }
 }
